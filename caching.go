@@ -21,14 +21,16 @@ func GetCachingClient() http.Client {
 	return *client
 }
 
-type CacheHTTPGetter struct{}
-
-// Define in the header
-// func (n *CacheHTTPGetter) Get(url string)
+type CacheHTTPGetter struct {
+	client http.Client
+}
 
 func (n *CacheHTTPGetter) Get(url string) ([]byte, error) {
-	client := GetCachingClient()
-	resp, err := client.Get(url)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		log.Fatal((err))
+	}
+	resp, err := n.client.Do(req)
 	if err != nil {
 		return nil, err
 	} else if resp.StatusCode >= 300 {
@@ -43,10 +45,10 @@ func (n *CacheHTTPGetter) Get(url string) ([]byte, error) {
 	return body, nil
 }
 
-func CachingHTTPSGetter() trust.HTTPSGetter {
+func CachingHTTPSGetter(client http.Client) trust.HTTPSGetter {
 	return &trust.RetryHTTPSGetter{
 		Timeout:       2 * time.Minute,
 		MaxRetryDelay: 30 * time.Second,
-		Getter:        &CacheHTTPGetter{},
+		Getter:        &CacheHTTPGetter{client: client},
 	}
 }
