@@ -3,12 +3,11 @@ module example.com/mod
 go 1.20
 
 require (
-	github.com/bxcodec/httpcache v1.0.0-beta.3
 	github.com/google/go-sev-guest v0.6.1
+	github.com/jellydator/ttlcache/v3 v3.0.1
 )
 
 require (
-	github.com/bxcodec/gotcha v1.0.0-beta.8 // indirect
 	github.com/golang/protobuf v1.5.0 // indirect
 	github.com/google/logger v1.1.1 // indirect
 	github.com/google/uuid v1.0.0 // indirect
@@ -18,6 +17,7 @@ require (
 	go.uber.org/atomic v1.7.0 // indirect
 	go.uber.org/multierr v1.8.0 // indirect
 	golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e // indirect
+	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c // indirect
 	golang.org/x/sys v0.0.0-20220608164250-635b8c9b7f68 // indirect
 	google.golang.org/protobuf v1.28.0 // indirect
 )
