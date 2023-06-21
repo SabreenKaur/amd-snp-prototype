@@ -1,14 +1,14 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
-	"time"
 
 	"github.com/google/go-sev-guest/abi"
-	"github.com/google/go-sev-guest/proto/sevsnp"
+	"github.com/google/go-sev-guest/proto/check"
+	"github.com/google/go-sev-guest/validate"
 	"github.com/google/go-sev-guest/verify"
+	"github.com/veraison/ear"
 )
 
 // Sample report data
@@ -69,37 +69,37 @@ func OpenReportFile() ([]byte, error) {
 	return b, nil
 }
 
-func matchesPolicy(protoRep *sevsnp.Report) {
-	// Check attestation report againt provided policy
-	bytePolicy, err := os.ReadFile("policy.json")
-	if err != nil {
-		fmt.Println("Error opening policy file: ", err)
-		return
-	}
+// func matchesPolicy(protoRep *sevsnp.Report) {
+// 	// Check attestation report againt provided policy
+// 	bytePolicy, err := os.ReadFile("policy.json")
+// 	if err != nil {
+// 		fmt.Println("Error opening policy file: ", err)
+// 		return
+// 	}
 
-	byteRealReport, err := json.Marshal(protoRep)
-	if err != nil {
-		fmt.Println("Could not marshal report", err)
-		return
-	}
+// 	byteRealReport, err := json.Marshal(protoRep)
+// 	if err != nil {
+// 		fmt.Println("Could not marshal report", err)
+// 		return
+// 	}
 
-	var policyMap map[string]interface{}
-	var realReportMap map[string]interface{}
+// 	var policyMap map[string]interface{}
+// 	var realReportMap map[string]interface{}
 
-	json.Unmarshal([]byte(bytePolicy), &policyMap)
-	json.Unmarshal([]byte(byteRealReport), &realReportMap)
+// 	json.Unmarshal([]byte(bytePolicy), &policyMap)
+// 	json.Unmarshal([]byte(byteRealReport), &realReportMap)
 
-	for key, val := range policyMap {
-		if val != realReportMap[key] {
-			fmt.Printf("value for report field %s does not match policy: expected %v actual %v", key, val, realReportMap[key])
-			fmt.Println()
-		} else {
-			fmt.Printf("value for field %s matches policy", key)
-			fmt.Println()
-		}
+// 	for key, val := range policyMap {
+// 		if val != realReportMap[key] {
+// 			fmt.Printf("value for report field %s does not match policy: expected %v actual %v", key, val, realReportMap[key])
+// 			fmt.Println()
+// 		} else {
+// 			fmt.Printf("value for field %s matches policy", key)
+// 			fmt.Println()
+// 		}
 
-	}
-}
+// 	}
+// }
 
 func main() {
 	// Initialise veck ttl cache
@@ -127,24 +127,34 @@ func main() {
 	}
 
 	// Testing the cache hits here, the GetAttestationFromReport function will always try and query the AMD KDS for the vcek
-	fmt.Println("0")
-	startTime := time.Now()
-	attest, _ := verify.GetAttestationFromReport(protoRep, &opts)
-	fmt.Printf("Response time: %vms\n\n", time.Since(startTime).Microseconds())
-	for i := 1; i < 15; i++ {
-		fmt.Println(i)
-		startTime := time.Now()
-		attest, err = verify.GetAttestationFromReport(protoRep, &opts)
-		fmt.Printf("Response time: %vms\n", time.Since(startTime).Microseconds())
-		if err != nil {
-			fmt.Println("\nError getting attestation from report: ", err)
-			return
-		}
-		fmt.Println("\nSuccess getting attestation from report")
+	attest, err := verify.GetAttestationFromReport(protoRep, &opts)
+	if err != nil {
+		fmt.Println("\nError getting attestation from report: ", err)
+		return
+	}
+	fmt.Println("\nSuccess getting attestation from report")
+
+	// Check report against policy by validating attestation
+	policy := check.Policy{
+		Policy:         196608,
+		ChipId:         protoRep.ChipId,
+		MinimumVersion: "1.53",
 	}
 
-	// Check report against policy
-	matchesPolicy(protoRep)
+	valOpts, err := validate.PolicyToOptions(&policy)
+	if err != nil {
+		fmt.Println("\nError converting policy to options: ", err)
+		return
+	}
+
+	err = validate.SnpAttestation(attest, valOpts)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	// result := CreateAttestationResult(SchemeName)
+	// err = populateAttestationResult(result, err)
 
 	// Verify the attestation signature and certificate chain
 	err = verify.SnpAttestation(attest, &opts)
@@ -154,3 +164,14 @@ func main() {
 	}
 	fmt.Println("\nAttestation verified!")
 }
+
+func CreateAttestationResult(schemeName string) *ear.AttestationResult {
+	result := ear.NewAttestationResult(schemeName, Version, Developer)
+	// apprasial := result.Submods[schemeName]
+	return result
+}
+
+// func populateAttestationResult(result ear.AttestationResult, err error) error {
+// 	apprasial := result.Submods[SchemeName]
+// 	return nil
+// }
