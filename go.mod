@@ -1,5 +1,7 @@
 module example.com/mod
 
+replace github.com/google/go-sev-guest => /home/ec2-user/go-sev-guest
+
 go 1.20
 
 require (

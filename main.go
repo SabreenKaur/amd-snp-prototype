@@ -1,13 +1,9 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
-	"time"
 
-	"github.com/google/go-sev-guest/abi"
-	"github.com/google/go-sev-guest/proto/sevsnp"
+	"github.com/google/go-sev-guest/client"
 	"github.com/google/go-sev-guest/verify"
 )
 
@@ -49,108 +45,48 @@ import (
 // }
 
 // userZeros1 defines a ReportData example that is all zeros except the last byte is 1.
-// var userZeros1 = [64]byte{
-// 	0, 0, 0, 0, 0, 0, 0, 0,
-// 	0, 0, 0, 0, 0, 0, 0, 0,
-// 	0, 0, 0, 0, 0, 0, 0, 0,
-// 	0, 0, 0, 0, 0, 0, 0, 0,
-// 	0, 0, 0, 0, 0, 0, 0, 0,
-// 	0, 0, 0, 0, 0, 0, 0, 0,
-// 	0, 0, 0, 0, 0, 0, 0, 0,
-// 	0, 0, 0, 0, 0, 0, 0, 1}
-
-func OpenReportFile() ([]byte, error) {
-	// Open report file
-	b, err := os.ReadFile("report.dat")
-	if err != nil {
-		return nil, err
-	}
-
-	return b, nil
-}
-
-func matchesPolicy(protoRep *sevsnp.Report) {
-	// Check attestation report againt provided policy
-	bytePolicy, err := os.ReadFile("policy.json")
-	if err != nil {
-		fmt.Println("Error opening policy file: ", err)
-		return
-	}
-
-	byteRealReport, err := json.Marshal(protoRep)
-	if err != nil {
-		fmt.Println("Could not marshal report", err)
-		return
-	}
-
-	var policyMap map[string]interface{}
-	var realReportMap map[string]interface{}
-
-	json.Unmarshal([]byte(bytePolicy), &policyMap)
-	json.Unmarshal([]byte(byteRealReport), &realReportMap)
-
-	for key, val := range policyMap {
-		if val != realReportMap[key] {
-			fmt.Printf("value for report field %s does not match policy: expected %v actual %v", key, val, realReportMap[key])
-			fmt.Println()
-		} else {
-			fmt.Printf("value for field %s matches policy", key)
-			fmt.Println()
-		}
-
-	}
-}
+var userZeros1 = [64]byte{
+	0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 1}
 
 func main() {
 	// Initialise veck ttl cache
 	vcekManager := NewVcek_TTLCache()
 
-	// Open report file
-	rbytes, err := OpenReportFile()
+	// Open device
+	d, err := client.OpenDevice()
 	if err != nil {
-		fmt.Println("Error opening report file: ", err)
+		fmt.Println("Error opening device: ", err)
 		return
 	}
+	fmt.Println("Device opened!: ", d)
 
-	// Convert report to protobuf form
-	protoRep, err := abi.ReportToProto(rbytes)
+	// Close device
+	defer d.Close()
+
+	// Get attestation report
+	rep, err := client.GetReport(d, userZeros1)
 	if err != nil {
-		fmt.Println("Error converting byte report to protobuf: ", err)
+		fmt.Println("error getting extended report: ", err)
 		return
 	}
-	fmt.Printf("Success in converting to proto report!\n\n")
+	fmt.Println("Attestation report: ", rep)
 
 	// Get Attestation report from proto report
 	opts := verify.Options{
 		CheckRevocations: true,
 		Getter:           TTLHTTPSGetter(vcekManager),
 	}
-
-	// Testing the cache hits here, the GetAttestationFromReport function will always try and query the AMD KDS for the vcek
-	fmt.Println("0")
-	startTime := time.Now()
-	attest, _ := verify.GetAttestationFromReport(protoRep, &opts)
-	fmt.Printf("Response time: %vms\n\n", time.Since(startTime).Microseconds())
-	for i := 1; i < 15; i++ {
-		fmt.Println(i)
-		startTime := time.Now()
-		attest, err = verify.GetAttestationFromReport(protoRep, &opts)
-		fmt.Printf("Response time: %vms\n", time.Since(startTime).Microseconds())
-		if err != nil {
-			fmt.Println("\nError getting attestation from report: ", err)
-			return
-		}
-		fmt.Println("\nSuccess getting attestation from report")
-	}
-
-	// Check report against policy
-	matchesPolicy(protoRep)
-
-	// Verify the attestation signature and certificate chain
-	err = verify.SnpAttestation(attest, &opts)
+	attestation, err := verify.GetAttestationFromReport(rep, &opts)
 	if err != nil {
-		fmt.Println("\nError verifying attestation report: ", err)
+		fmt.Println("error getting attestation report: ", err)
 		return
 	}
-	fmt.Println("\nAttestation verified!")
+	fmt.Println("Attestation report: ", attestation)
 }
